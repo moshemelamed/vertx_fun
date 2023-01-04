@@ -80,8 +80,8 @@ public class TestRequest extends AbstractVerticle {
             JsonObject object;
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
-                String jsonString = "{\"value\": \"" + rs.getString("text") + "\", \"lexical\": \""
-                        + removeTrailingZeros(rs.getString("value")) + "\"}";
+                String jsonString = "{\"value\": \"" + removeTrailingZeros(rs.getString("value"))+ "\", \"lexical\": \""
+                        + rs.getString("text") + "\"}"; 
                 object = new JsonObject(jsonString);
             } else {
                 String jsonString = "{\"value\": \"null\", \"lexical\": \"null\"}";
