@@ -6,7 +6,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import io.vertx.core.json.*;
-
+import io.vertx.jdbcclient.JDBCPool;
+import io.vertx.sqlclient.Row;
 import io.vertx.core.*;
 import java.sql.*;
 import io.vertx.core.AbstractVerticle;
@@ -18,6 +19,7 @@ public class TestRequest extends AbstractVerticle {
     @Override
     public void start(Promise<Void> start) {
         vertx.eventBus().consumer("text.analyze", msg -> {
+            JsonObject config = new JsonObject();
             String text = (String) msg.body();
             String reducedtext = reduceText(text.toLowerCase());
             String lexical = concatenateValues(reducedtext);
@@ -26,32 +28,30 @@ public class TestRequest extends AbstractVerticle {
                     + ") = (SELECT MIN(ABS(value - " + lexical + ")) FROM words) ORDER BY ABS(value - " + lexical
                     + ") LIMIT 1";
             final String INSERT = "INSERT INTO words ('text', 'value') VALUES ('" + reducedtext + "', '" + lexical
-                    + "')";
-            try (Connection conn = DriverManager.getConnection(DB_URL, "", "");
-            // Statement stmt = conn.createStatement();
-            ) {
-                // stmt.executeUpdate(INSERT);
-                msg.reply(selectLexical(SELECT_TEXT, conn));
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-
-            try (Connection conn = DriverManager.getConnection(DB_URL, "", "");
-            Statement stmt = conn.createStatement();
-            ) {
-                stmt.executeUpdate(INSERT);
-                // msg.reply(selectLexical(SELECT_TEXT, conn));
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
+                    + "')";//INSERT INTO words (text, value) SELECT 'a', '097' WHERE NOT EXISTS (SELECT 1 FROM words WHERE text = 'a')
+            config.put("url", String.format("jdbc:sqlite:%s/database/words.db", System.getProperty("user.dir")))
+                  .put("driver_class","org.sqlite.JDBC");
+                  JDBCPool jdbcPool = JDBCPool.pool(vertx, config);
+                  selectLexical(SELECT_TEXT, jdbcPool,ar -> {
+                    if (ar.succeeded()) {
+                      JsonObject json = ar.result();
+                      System.out.println("-----------------"+json);
+                      msg.reply(json);
+                      // do something with the json object
+                    } else {
+                        System.out.println("-----------------not succeeded");
+                    }
+                  });
+                  insertIfNew(INSERT, jdbcPool);
         });
+
     }
 
     public static String concatenateValues(String text) {
         String result = "";
         for (int i = 0; i < text.length(); i++) {
             result += Integer.toString((int) text.charAt(i));
-            if(result.length() < 3){
+            if (result.length() < 3) {
                 result = "0" + result;
             }
         }
@@ -75,33 +75,47 @@ public class TestRequest extends AbstractVerticle {
         }
     }
 
-    public static JsonObject selectLexical(String text,Connection conn) {
-        try (PreparedStatement stmt = conn.prepareStatement(text)) {
-            JsonObject object;
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                String jsonString = "{\"value\": \"" + removeTrailingZeros(rs.getString("value"))+ "\", \"lexical\": \""
-                        + rs.getString("text") + "\"}"; 
-                object = new JsonObject(jsonString);
-            } else {
-                String jsonString = "{\"value\": \"null\", \"lexical\": \"null\"}";
-                object = new JsonObject(jsonString);
-            }
+    public static JsonObject selectLexical(String text, JDBCPool pool,  Handler<AsyncResult<JsonObject>> handler) {
+        JsonObject object = new JsonObject();
+        pool.query(text)
+            .execute()
+            .onFailure(e -> {
+                JsonObject json = object.put("value", "null")
+                .put("lexical", "null");
+                handler.handle(Future.failedFuture(e.getCause()));
+            })
+            .onSuccess(rows -> {
+                for (Row row : rows) {
+                    object.put("value", removeTrailingZeros(row.getString("value")))
+                            .put("lexical", row.getString("text"));
+                            System.out.println("-----------------"+object);
+                }
+                handler.handle(Future.succeededFuture(object));
+            });
             return object;
-        } catch (SQLException e) {
-            System.err.println("Error executing query: " + e.getMessage());
-            String jsonString = "{\"foo\":\"bar\"}";
-            JsonObject errobject = new JsonObject(jsonString);
-            return errobject;
-        }
-        
+    }
+
+    public static JsonObject insertIfNew(String text, JDBCPool pool) {
+        JsonObject object = new JsonObject();
+        pool.query(text)
+            .execute()
+            .onFailure(e -> {
+                object.put("value", "null")
+                .put("lexical", "null");
+            })
+            .onSuccess(rows -> {
+                for (Row row : rows) {
+                    System.out.println("successfully updated the database");
+                }
+            });    
+        return object;
     }
 
     public static String removeTrailingZeros(String input) {
         int i = input.length() - 1;
         while (i >= 0 && input.charAt(i) == '0') {
-          i--;
+            i--;
         }
         return input.substring(0, i + 1);
-      }
+    }
 }

@@ -76,17 +76,16 @@
     <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-jdbc-client</artifactId>
-      <version>4.3.7</version>
     </dependency>
     <dependency>
         <groupId>io.vertx</groupId>
         <artifactId>vertx-config</artifactId>
     </dependency>
-    <dependency>
+    <!-- <dependency>
         <groupId>org.flywaydb</groupId>
         <artifactId>flyway-core</artifactId>
         <version>6.3.1</version>
-    </dependency>
+    </dependency> -->
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
