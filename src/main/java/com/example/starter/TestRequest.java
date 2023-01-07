@@ -32,28 +32,28 @@ public class TestRequest extends AbstractVerticle {
             config.put("url", String.format("jdbc:sqlite:%s/database/words.db", System.getProperty("user.dir")))
                   .put("driver_class","org.sqlite.JDBC");
                   JDBCPool jdbcPool = JDBCPool.pool(vertx, config);
-                  selectLexical(SELECT_TEXT, jdbcPool,ar -> {
+                  selectLexical(SELECT_TEXT, jdbcPool, ar -> {
                     if (ar.succeeded()) {
                       JsonObject json = ar.result();
-                      System.out.println("-----------------"+json);
                       msg.reply(json);
                       // do something with the json object
                     } else {
-                        System.out.println("-----------------not succeeded");
+                        System.out.println("-----------"+ar.failed());
                     }
                   });
-                  insertIfNew(INSERT, jdbcPool);
+                  //insertIfNew(INSERT, jdbcPool);
         });
-
     }
 
     public static String concatenateValues(String text) {
         String result = "";
+        String newChar = "";
         for (int i = 0; i < text.length(); i++) {
-            result += Integer.toString((int) text.charAt(i));
-            if (result.length() < 3) {
-                result = "0" + result;
+            newChar = Integer.toString((int) text.charAt(i));
+            if (newChar.length() < 3) {
+                newChar = "0" + newChar;
             }
+            result += newChar;
         }
         result = padWithZeros(result);
         return result;
@@ -80,16 +80,19 @@ public class TestRequest extends AbstractVerticle {
         pool.query(text)
             .execute()
             .onFailure(e -> {
-                JsonObject json = object.put("value", "null")
-                .put("lexical", "null");
                 handler.handle(Future.failedFuture(e.getCause()));
             })
             .onSuccess(rows -> {
-                for (Row row : rows) {
-                    object.put("value", removeTrailingZeros(row.getString("value")))
+                if (rows.size() > 0) {
+                    for (Row row : rows) {
+                        object.put("value", removeTrailingZeros(row.getString("value")))
                             .put("lexical", row.getString("text"));
-                            System.out.println("-----------------"+object);
+                    }
+                }else{
+                    object.put("value", "null")
+                            .put("lexical", "null");
                 }
+                
                 handler.handle(Future.succeededFuture(object));
             });
             return object;
@@ -100,13 +103,10 @@ public class TestRequest extends AbstractVerticle {
         pool.query(text)
             .execute()
             .onFailure(e -> {
-                object.put("value", "null")
-                .put("lexical", "null");
+                ///handler.handle(Future.failedFuture(e.getCause()));
             })
             .onSuccess(rows -> {
-                for (Row row : rows) {
-                    System.out.println("successfully updated the database");
-                }
+                System.out.println("----------------successfully updated the database");
             });    
         return object;
     }

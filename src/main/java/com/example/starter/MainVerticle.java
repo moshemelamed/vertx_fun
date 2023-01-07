@@ -63,12 +63,8 @@ public class MainVerticle extends AbstractVerticle {
   void selectAll(RoutingContext context) {
     
     JsonObject config = new JsonObject();
-		// config.put("url",
-		// "jdbc:mysql://10.0.0.79:3306/orion_api_manager?useUnicode=true&useSSL=false&serverTimezone=UTC")
-		// .put("driver_class", "com.mysql.cj.jdbc.Driver").put("user",
-		// "root").put("password", "root");
-		config.put("url", String.format("jdbc:sqlite:%s/database/words.db", System.getProperty("user.dir"))).put("driver_class",
-				"org.sqlite.JDBC");
+		config.put("url", String.format("jdbc:sqlite:%s/database/words.db", System.getProperty("user.dir")))
+          .put("driver_class","org.sqlite.JDBC");
 		JDBCPool jdbcPool = JDBCPool.pool(vertx, config);
     jdbcPool.query("SELECT * FROM words")
         .execute()
