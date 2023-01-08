@@ -12,30 +12,45 @@ public class TestRequest extends AbstractVerticle {
 
     @Override
     public void start(Promise<Void> start) {
-        //self send from MainVerticle
+        JsonObject config = new JsonObject();
+        JDBCPool jdbcPool = JDBCPool.pool(vertx, config);
+        config.put("url", String.format("jdbc:sqlite:%s/database/words.db", System.getProperty("user.dir")))
+                .put("driver_class", "org.sqlite.JDBC");
+        // self send from MainVerticle
         vertx.eventBus().consumer("text.analyze", msg -> {
-            JsonObject config = new JsonObject();
+
             String text = (String) msg.body();
             String reducedtext = reduceText(text.toLowerCase());
             String lexical = concatenateValues(reducedtext);
-            // String reduceLexical = reduceValues(lexical);
-            final String SELECT_TEXT = "SELECT * FROM words WHERE ABS(ROUND(value, 4) - ROUND('"+lexical+"', 4)) =" + 
-            "(SELECT MIN(ABS(ROUND(value - '"+lexical+"', 4))) FROM words) ORDER BY ABS(ROUND(value, 4) - ROUND('"+lexical+"', 4))";
-            final String INSERT = "INSERT INTO words ('text', 'value') VALUES ('" + reducedtext + "', '" + lexical
-                    + "')";//INSERT INTO words (text, value) SELECT 'a', '097' WHERE NOT EXISTS (SELECT 1 FROM words WHERE text = 'a')
-            config.put("url", String.format("jdbc:sqlite:%s/database/words.db", System.getProperty("user.dir")))
-                  .put("driver_class","org.sqlite.JDBC");
-                  JDBCPool jdbcPool = JDBCPool.pool(vertx, config);
-                  selectLexical(SELECT_TEXT, jdbcPool, ar -> {
-                    if (ar.succeeded()) {
-                      JsonObject json = ar.result();
-                      msg.reply(json);
-                      // do something with the json object
-                    } else {
-                        System.out.println("-----------"+ar.failed());
-                    }
-                  });
-                  insertIfNew(INSERT, jdbcPool);
+            Integer sumOfTextCarValue = sumTextCharValue(reducedtext);
+            final String SELECT_TEXT_FOR_LEXICAL = "SELECT * FROM words WHERE ABS(ROUND(value, 4) - ROUND('" + lexical + "', 4)) ="+
+                    "(SELECT MIN(ABS(ROUND(value - '" + lexical
+                    + "', 4))) FROM words) ORDER BY ABS(ROUND(value, 4) - ROUND('" + lexical + "', 4)) LIMIT 1";
+            final String SELECT_TEXT_FOR_TEXT_SUM = "SELECT * FROM words WHERE ABS(textSum - '" + sumOfTextCarValue + "') =(SELECT MIN(ABS(textSum - '" + sumOfTextCarValue + "')) FROM words) ORDER BY ABS(textSum - '" + sumOfTextCarValue + "') LIMIT 1";
+            final String INSERT = "INSERT INTO words ('text', 'value', 'textSum') VALUES ('" + reducedtext + "', '" + lexical
+                    + "', " + sumOfTextCarValue + ")";
+            JsonObject resObject = new JsonObject();
+            selectLexical(SELECT_TEXT_FOR_LEXICAL, jdbcPool).onSuccess(res -> {
+                resObject.put("lexical", res.getString("lexical"));
+                
+               
+            }).onFailure(res -> {
+
+                msg.reply(new JsonObject().put("msg", "cant execute the selectLexical query"));
+                // do something with the json object
+            });
+
+            selectTextSum(SELECT_TEXT_FOR_TEXT_SUM, jdbcPool).onSuccess(res -> {
+                resObject.put("value", res.getString("value"));
+                msg.reply(resObject);
+                insertIfNew(INSERT, jdbcPool);
+            }).onFailure(res -> {
+
+                msg.reply(new JsonObject().put("msg", "cant execute the selectTextSum query"));
+                // do something with the json object
+            });
+            
+            
         });
     }
 
@@ -44,13 +59,25 @@ public class TestRequest extends AbstractVerticle {
         String newChar = "";
         for (int i = 0; i < text.length(); i++) {
             newChar = Integer.toString((int) text.charAt(i));
-            if (newChar.length() < 3) {
+            if (newChar.length() < 3 && newChar.length() > 1) {
                 newChar = "0" + newChar;
+            }
+            if (newChar.length() < 2) {
+                newChar = "00" + newChar;
             }
             result += newChar;
         }
         result = padWithZeros(result);
         return result;
+    }
+
+    public static Integer sumTextCharValue(String text) {
+        Integer sumOfChar = 0;
+        for (int i = 0; i < text.length(); i++) {
+            sumOfChar = sumOfChar + (int) text.charAt(i);
+        }
+        System.out.println(sumOfChar);
+        return sumOfChar;
     }
 
     public static String padWithZeros(String input) {
@@ -69,40 +96,42 @@ public class TestRequest extends AbstractVerticle {
         }
     }
 
-    public static JsonObject selectLexical(String text, JDBCPool pool,  Handler<AsyncResult<JsonObject>> handler) {
+    public static Future<JsonObject> selectLexical(String text, JDBCPool pool) {
         JsonObject object = new JsonObject();
-        pool.query(text)
-            .execute()
-            .onFailure(e -> {
-                handler.handle(Future.failedFuture(e.getCause()));
-            })
-            .onSuccess(rows -> {
-                if (rows.size() > 0) {
-                    for (Row row : rows) {
-                        object.put("value", removeTrailingZeros(row.getString("value")))
-                              .put("lexical", row.getString("text"));
+        return pool.query(text)
+                .execute()
+                .map(rows -> {
+                    if (rows.size() > 0) {
+                        for (Row row : rows) {
+                            object.put("lexical", row.getString("text"));
+                        }
+                    } else {
+                        object.put("lexical", "null");
                     }
-                }else{
-                    object.put("value", "null")
-                            .put("lexical", "null");
-                }
-                
-                handler.handle(Future.succeededFuture(object));
-            });
-            return object;
+                    return object;
+                });
     }
 
-    public static JsonObject insertIfNew(String text, JDBCPool pool) {
+    public static Future<JsonObject> selectTextSum(String text, JDBCPool pool) {
+        JsonObject object = new JsonObject();
+        return pool.query(text)
+                .execute()
+                .map(rows -> {
+                    if (rows.size() > 0) {
+                        for (Row row : rows) {
+                            object.put("value", row.getString("text"));
+                        }
+                    } else {
+                        object.put("value", "null");
+                    }
+                    return object;
+                });
+    }
+
+    public static void insertIfNew(String text, JDBCPool pool) {
         JsonObject object = new JsonObject();
         pool.query(text)
-            .execute()
-            .onFailure(e -> {
-                ///handler.handle(Future.failedFuture(e.getCause()));
-            })
-            .onSuccess(rows -> {
-                System.out.println("----------------successfully updated the database");
-            });    
-        return object;
+                .execute();
     }
 
     public static String removeTrailingZeros(String input) {
