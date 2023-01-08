@@ -24,9 +24,8 @@ public class TestRequest extends AbstractVerticle {
             String reducedtext = reduceText(text.toLowerCase());
             String lexical = concatenateValues(reducedtext);
             // String reduceLexical = reduceValues(lexical);
-            final String SELECT_TEXT = "SELECT * FROM words WHERE ABS(value - " + lexical
-                    + ") = (SELECT MIN(ABS(value - " + lexical + ")) FROM words) ORDER BY ABS(value - " + lexical
-                    + ") LIMIT 1";
+            final String SELECT_TEXT = "SELECT * FROM words WHERE ABS(ROUND(value, 4) - ROUND('"+lexical+"', 4)) =" + 
+            "(SELECT MIN(ABS(ROUND(value - '"+lexical+"', 4))) FROM words) ORDER BY ABS(ROUND(value, 4) - ROUND('"+lexical+"', 4))";
             final String INSERT = "INSERT INTO words ('text', 'value') VALUES ('" + reducedtext + "', '" + lexical
                     + "')";//INSERT INTO words (text, value) SELECT 'a', '097' WHERE NOT EXISTS (SELECT 1 FROM words WHERE text = 'a')
             config.put("url", String.format("jdbc:sqlite:%s/database/words.db", System.getProperty("user.dir")))
@@ -41,7 +40,7 @@ public class TestRequest extends AbstractVerticle {
                         System.out.println("-----------"+ar.failed());
                     }
                   });
-                  //insertIfNew(INSERT, jdbcPool);
+                  insertIfNew(INSERT, jdbcPool);
         });
     }
 
@@ -86,7 +85,7 @@ public class TestRequest extends AbstractVerticle {
                 if (rows.size() > 0) {
                     for (Row row : rows) {
                         object.put("value", removeTrailingZeros(row.getString("value")))
-                            .put("lexical", row.getString("text"));
+                              .put("lexical", row.getString("text"));
                     }
                 }else{
                     object.put("value", "null")
