@@ -1,15 +1,9 @@
 package com.example.starter;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import io.vertx.core.json.*;
 import io.vertx.jdbcclient.JDBCPool;
 import io.vertx.sqlclient.Row;
 import io.vertx.core.*;
-import java.sql.*;
 import io.vertx.core.AbstractVerticle;
 
 public class TestRequest extends AbstractVerticle {
@@ -18,6 +12,7 @@ public class TestRequest extends AbstractVerticle {
 
     @Override
     public void start(Promise<Void> start) {
+        //self send from MainVerticle
         vertx.eventBus().consumer("text.analyze", msg -> {
             JsonObject config = new JsonObject();
             String text = (String) msg.body();
