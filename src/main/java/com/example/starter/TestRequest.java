@@ -9,7 +9,6 @@ import io.vertx.core.AbstractVerticle;
 public class TestRequest extends AbstractVerticle {
     static final String DB_URL = "jdbc:sqlite:database/words.db";
     static final String SELECT = "SELECT text, value FROM words";
-
     @Override
     public void start(Promise<Void> start) {
         JsonObject config = new JsonObject();
@@ -39,8 +38,9 @@ public class TestRequest extends AbstractVerticle {
                 msg.reply(new JsonObject().put("msg", "cant execute the selectLexical query"));
                 // do something with the json object
             });
-
+            
             selectTextSum(SELECT_TEXT_FOR_TEXT_SUM, jdbcPool).onSuccess(res -> {
+                moshe = "zdf";
                 resObject.put("value", res.getString("value"));
                 msg.reply(resObject);
                 insertIfNew(INSERT, jdbcPool);
