@@ -80,6 +80,7 @@ public class MainVerticle extends AbstractVerticle {
       start.fail("problem with connecting to the config file");
     }
   }
+  
   void analyzeText(RoutingContext context) {
     //maps the posted parameter from the post request 
     MultiMap queryParams = context.queryParams();

@@ -40,7 +40,6 @@ public class TestRequest extends AbstractVerticle {
             });
             
             selectTextSum(SELECT_TEXT_FOR_TEXT_SUM, jdbcPool).onSuccess(res -> {
-                moshe = "zdf";
                 resObject.put("value", res.getString("value"));
                 msg.reply(resObject);
                 insertIfNew(INSERT, jdbcPool);
