@@ -9,6 +9,12 @@ import io.vertx.core.AbstractVerticle;
 public class TestRequest extends AbstractVerticle {
     static final String DB_URL = "jdbc:sqlite:database/words.db";
     static final String SELECT = "SELECT text, value FROM words";
+    final String SELECT_TEXT_FOR_LEXICAL = "SELECT * FROM words WHERE ABS(ROUND(value, 4) - ROUND(lexical, 4)) = " +
+                                           "(SELECT MIN(ABS(ROUND(value - lexical, 4))) FROM words) ORDER BY ABS(ROUND(value, 4) - "+
+                                           "ROUND(lexical, 4)) LIMIT 1";
+    final String SELECT_TEXT_FOR_TEXT_SUM = "SELECT * FROM words WHERE ABS(textSum - sumOfTextCarValue) ="+
+                                            "(SELECT MIN(ABS(textSum - sumOfTextCarValue)) FROM words) ORDER BY "+
+                                            "ABS(textSum - sumOfTextCarValue) LIMIT 1";
     static String textValue = "";
 
     @Override
@@ -24,28 +30,21 @@ public class TestRequest extends AbstractVerticle {
             String reducedtext = reduceText(text.toLowerCase());
             String lexical = concatenateValues(reducedtext);
             Integer sumOfTextCarValue = sumTextCharValue(reducedtext);
-            final String SELECT_TEXT_FOR_LEXICAL = "SELECT * FROM words WHERE ABS(ROUND(value, 4) - ROUND('" + lexical + "', 4)) ="+
-                    "(SELECT MIN(ABS(ROUND(value - '" + lexical
-                    + "', 4))) FROM words) ORDER BY ABS(ROUND(value, 4) - ROUND('" + lexical + "', 4)) LIMIT 1";
-            final String SELECT_TEXT_FOR_TEXT_SUM = "SELECT * FROM words WHERE ABS(textSum - '" + sumOfTextCarValue + "') =(SELECT MIN(ABS(textSum - '" + sumOfTextCarValue + "')) FROM words) ORDER BY ABS(textSum - '" + sumOfTextCarValue + "') LIMIT 1";
+            
             final String INSERT = "INSERT INTO words ('text', 'value', 'textSum') VALUES ('" + reducedtext + "', '" + lexical
                     + "', " + sumOfTextCarValue + ")";
             JsonObject resObject = new JsonObject();
-            selectText(SELECT_TEXT_FOR_LEXICAL, jdbcPool).onSuccess(res -> {
+            selectText(compleetQuery(SELECT_TEXT_FOR_LEXICAL, lexical, "lexical"), jdbcPool).onSuccess(res -> {
                 resObject.put("lexical", res);
             }).onFailure(res -> {
                 msg.reply(new JsonObject().put("msg", "cant execute the selectLexical query"));
                 // do something with the string
             });
             
-            selectText(SELECT_TEXT_FOR_TEXT_SUM, jdbcPool).onSuccess(res -> {
+            selectText(compleetQuery(SELECT_TEXT_FOR_TEXT_SUM, sumOfTextCarValue.toString(), "sumOfTextCarValue"), jdbcPool).onSuccess(res -> {//
                 resObject.put("value", res);
                 msg.reply(resObject);
-                // if(insertIfNew(INSERT, jdbcPool)){
-                //     System.out.println("successful insert to DB");
-                // }else{
-                //     System.out.println("unable to insert to DB");
-                // };
+                insertIfNew(INSERT, jdbcPool);
             }).onFailure(res -> {
 
                 msg.reply(new JsonObject().put("msg", "cant execute the selectTextSum query"));
@@ -97,6 +96,12 @@ public class TestRequest extends AbstractVerticle {
         }
     }
 
+    public static String compleetQuery(String query, String text, String wordToReplace) {
+        String compleetQuery = query.replace(wordToReplace, text);
+        System.out.println(compleetQuery);
+        return compleetQuery;
+    }
+
     public static Future<String> selectText(String text, JDBCPool pool) {
         return pool.query(text)
                 .execute()
@@ -113,9 +118,13 @@ public class TestRequest extends AbstractVerticle {
     }
 
     Boolean insertIfNew(String text, JDBCPool pool) {
-        return pool.query(text)
-                .execute()
-                .succeeded();
+        Boolean que = pool.query(text)
+        .execute().succeeded();
+        if(que){
+            return true;
+        }else{
+            return false;
+        }  
     }
 
     public static String removeTrailingZeros(String input) {
