@@ -9,6 +9,8 @@ import io.vertx.core.AbstractVerticle;
 public class TestRequest extends AbstractVerticle {
     static final String DB_URL = "jdbc:sqlite:database/words.db";
     static final String SELECT = "SELECT text, value FROM words";
+    static String textValue = "";
+
     @Override
     public void start(Promise<Void> start) {
         JsonObject config = new JsonObject();
@@ -29,20 +31,21 @@ public class TestRequest extends AbstractVerticle {
             final String INSERT = "INSERT INTO words ('text', 'value', 'textSum') VALUES ('" + reducedtext + "', '" + lexical
                     + "', " + sumOfTextCarValue + ")";
             JsonObject resObject = new JsonObject();
-            selectLexical(SELECT_TEXT_FOR_LEXICAL, jdbcPool).onSuccess(res -> {
-                resObject.put("lexical", res.getString("lexical"));
-                
-               
+            selectText(SELECT_TEXT_FOR_LEXICAL, jdbcPool).onSuccess(res -> {
+                resObject.put("lexical", res);
             }).onFailure(res -> {
-
                 msg.reply(new JsonObject().put("msg", "cant execute the selectLexical query"));
-                // do something with the json object
+                // do something with the string
             });
             
-            selectTextSum(SELECT_TEXT_FOR_TEXT_SUM, jdbcPool).onSuccess(res -> {
-                resObject.put("value", res.getString("value"));
+            selectText(SELECT_TEXT_FOR_TEXT_SUM, jdbcPool).onSuccess(res -> {
+                resObject.put("value", res);
                 msg.reply(resObject);
-                insertIfNew(INSERT, jdbcPool);
+                // if(insertIfNew(INSERT, jdbcPool)){
+                //     System.out.println("successful insert to DB");
+                // }else{
+                //     System.out.println("unable to insert to DB");
+                // };
             }).onFailure(res -> {
 
                 msg.reply(new JsonObject().put("msg", "cant execute the selectTextSum query"));
@@ -94,42 +97,25 @@ public class TestRequest extends AbstractVerticle {
         }
     }
 
-    public static Future<JsonObject> selectLexical(String text, JDBCPool pool) {
-        JsonObject object = new JsonObject();
+    public static Future<String> selectText(String text, JDBCPool pool) {
         return pool.query(text)
                 .execute()
                 .map(rows -> {
                     if (rows.size() > 0) {
                         for (Row row : rows) {
-                            object.put("lexical", row.getString("text"));
+                            textValue = row.getString("text");
                         }
                     } else {
-                        object.put("lexical", "null");
+                        textValue = null;
                     }
-                    return object;
+                    return textValue;
                 });
     }
 
-    public static Future<JsonObject> selectTextSum(String text, JDBCPool pool) {
-        JsonObject object = new JsonObject();
+    Boolean insertIfNew(String text, JDBCPool pool) {
         return pool.query(text)
                 .execute()
-                .map(rows -> {
-                    if (rows.size() > 0) {
-                        for (Row row : rows) {
-                            object.put("value", row.getString("text"));
-                        }
-                    } else {
-                        object.put("value", "null");
-                    }
-                    return object;
-                });
-    }
-
-    public static void insertIfNew(String text, JDBCPool pool) {
-        JsonObject object = new JsonObject();
-        pool.query(text)
-                .execute();
+                .succeeded();
     }
 
     public static String removeTrailingZeros(String input) {
