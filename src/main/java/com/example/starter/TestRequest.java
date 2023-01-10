@@ -58,10 +58,10 @@ public class TestRequest extends AbstractVerticle {
         String newChar = "";
         for (int i = 0; i < text.length(); i++) {
             newChar = Integer.toString((int) text.charAt(i));
-            if (newChar.length() < 3 && newChar.length() > 1) {
+            if (newChar.length() == 2) {
                 newChar = "0" + newChar;
             }
-            if (newChar.length() < 2) {
+            if (newChar.length() == 1) {
                 newChar = "00" + newChar;
             }
             result += newChar;
