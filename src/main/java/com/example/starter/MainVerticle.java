@@ -21,19 +21,23 @@ public class MainVerticle extends AbstractVerticle {
   @Override
   //Starts the vertx instance/thread - need to implement complete() and fail() on the method 
   public void start(Promise<Void> start) throws Exception {
-
-    // creates many instances for the testRequest vertical
+    Router router = Router.router(vertx);
+    router.post("/analyze").handler(this::analyzeText);
+    //remove -- test connection to DB and data in DB - testing not for production
+    router.post("/").handler(this::selectAll);
     DeploymentOptions opts = new DeploymentOptions()
         .setWorker(true)
         //setting 8 instances of vertical TestRequest so each is handled separately 
         .setInstances(8);
     vertx.deployVerticle("com.example.starter.TestRequest", opts);
-    // connect to sqlite
-    
-    // Create a Router
-    Router router = Router.router(vertx);
 
-    ConfigStoreOptions defaultConfig = new ConfigStoreOptions()
+    doConfig(start, router);
+  }
+    // creates many instances for the testRequest vertical
+    
+    // connect to sqlite
+    Future<JsonObject> doConfig(Promise<Void> start, Router router) {
+      ConfigStoreOptions defaultConfig = new ConfigStoreOptions()
       .setType("file")
       .setFormat("json")
       .setConfig(new JsonObject().put("path", String.format("%s/src/main/java/com/example/resources/config.json", System.getProperty("user.dir"))));
@@ -46,11 +50,17 @@ public class MainVerticle extends AbstractVerticle {
     Handler<AsyncResult<JsonObject>> handler = AsyncResult -> this.handleConfigResults(start, router, AsyncResult);
     cr.getConfig(handler);
 
+      return Future.future(promise -> cr.getConfig(promise));
+  }
+
+    // Create a Router
+    
+
+    
+
     
     // Mount the handler for all incoming requests at every path and HTTP method to the analyzeText function
-    router.post("/analyze").handler(this::analyzeText);
-    //remove -- test connection to DB and data in DB - testing not for production
-    router.post("/").handler(this::selectAll);
+    
     //TODO: implement the config file for all final configurations
     // ConfigStoreOptions defaultConfig = new ConfigStoreOptions()
     //     .setType("file")
@@ -60,7 +70,6 @@ public class MainVerticle extends AbstractVerticle {
     // Create the HTTP server -- ?should we add the port number as a variable
     //? to increase the number of ports that will handle the requests to the server
     
-  }
 
   void handleConfigResults(Promise<Void> start, Router router, AsyncResult <JsonObject> asyncResult){
     if(asyncResult.succeeded()){

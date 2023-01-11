@@ -34,22 +34,24 @@ public class TestRequest extends AbstractVerticle {
             final String INSERT = "INSERT INTO words ('text', 'value', 'textSum') VALUES ('" + reducedtext + "', '" + lexical
                     + "', " + sumOfTextCarValue + ")";
             JsonObject resObject = new JsonObject();
-            selectText(compleetQuery(SELECT_TEXT_FOR_LEXICAL, lexical, "lexical"), jdbcPool).onSuccess(res -> {
-                resObject.put("lexical", res);
+            
+            selectText(compleetQuery(SELECT_TEXT_FOR_LEXICAL, lexical, "lexical"), jdbcPool).onSuccess(resp -> {
+                resObject.put("lexical", resp);
+                selectText(compleetQuery(SELECT_TEXT_FOR_TEXT_SUM, sumOfTextCarValue.toString(), "sumOfTextCarValue"), jdbcPool).onSuccess(res -> {//
+                    resObject.put("value", res);
+                    msg.reply(resObject);
+                    insertIfNew(INSERT, jdbcPool);
+                }).onFailure(res -> {
+    
+                    msg.reply(new JsonObject().put("msg", "cant execute the selectTextSum query"));
+                    // do something with the json object
+                });
             }).onFailure(res -> {
                 msg.reply(new JsonObject().put("msg", "cant execute the selectLexical query"));
                 // do something with the string
             });
             
-            selectText(compleetQuery(SELECT_TEXT_FOR_TEXT_SUM, sumOfTextCarValue.toString(), "sumOfTextCarValue"), jdbcPool).onSuccess(res -> {//
-                resObject.put("value", res);
-                msg.reply(resObject);
-                insertIfNew(INSERT, jdbcPool);
-            }).onFailure(res -> {
-
-                msg.reply(new JsonObject().put("msg", "cant execute the selectTextSum query"));
-                // do something with the json object
-            });
+            
             
             
         });
@@ -97,9 +99,7 @@ public class TestRequest extends AbstractVerticle {
     }
 
     public static String compleetQuery(String query, String text, String wordToReplace) {
-        String compleetQuery = query.replace(wordToReplace, text);
-        System.out.println(compleetQuery);
-        return compleetQuery;
+        return query.replace(wordToReplace, text);
     }
 
     public static Future<String> selectText(String text, JDBCPool pool) {
